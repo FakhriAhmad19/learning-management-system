@@ -24,7 +24,10 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call([
+            // Demo inti: akun yang didokumentasikan di README + jalur belajar
             LmsDummySeeder::class,
+            // Keluasan: banyak pengajar, kursus, dan siswa dengan progres beragam
+            DemoContentSeeder::class,
         ]);
     }
 }
