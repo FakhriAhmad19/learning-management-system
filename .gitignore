@@ -25,3 +25,8 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Database SQLite lokal sisa sebelum pindah ke MySQL
+/learning_system
+*.sqlite
+*.sqlite3
