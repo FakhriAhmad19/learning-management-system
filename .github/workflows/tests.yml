@@ -13,82 +13,43 @@ concurrency:
 
 jobs:
   tests:
-    name: PHPUnit (MySQL)
+    name: PHPUnit (Docker)
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          # Nama database ini HARUS sama dengan yang dikunci pada koneksi
-          # `mysql_testing` di config/database.php.
-          MYSQL_DATABASE: learning_system_test
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-    env:
-      # Variabel lingkungan job berada di $_SERVER, yang dibaca Laravel lebih
-      # dulu daripada .env — sehingga nilai di bawah menang atas .env.example.
-      DB_HOST: 127.0.0.1
-      DB_PORT: 3306
-      DB_USERNAME: root
-      DB_PASSWORD: root
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Siapkan PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          # Ekstensi yang sama dengan image produksi; intl wajib untuk Filament
-          extensions: pdo_mysql, mbstring, bcmath, gd, zip, intl, exif, pcntl
-          coverage: none
+      # Test dijalankan di dalam stack Docker proyek ini, bukan di lingkungan
+      # yang disusun ulang oleh runner.
+      #
+      # Alasannya konkret: perintah backup:database memanggil `mysqldump`, dan
+      # opsi TLS-nya berbeda antara klien MariaDB (dipakai image proyek) dan
+      # klien Oracle. Menyusun ulang lingkungan di runner membuat CI menguji
+      # kombinasi yang berbeda dari yang benar-benar dijalankan di produksi.
+      # Dengan cara ini CI memakai image, klien, dan MySQL yang sama persis
+      # dengan perintah yang didokumentasikan di README.
+      - name: Bangun dan jalankan stack Docker
+        run: docker compose up -d --build --renew-anon-volumes
 
-      - name: Cache dependensi Composer
-        uses: actions/cache@v4
-        with:
-          path: vendor
-          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-
-
-      - name: Pasang dependensi Composer
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Pasang klien MariaDB
-        # Dibutuhkan perintah backup:database. Dipasang eksplisit agar tidak
-        # bergantung pada isi image runner, dan sengaja memakai klien MariaDB
-        # — sama seperti image Docker proyek ini — supaya opsi TLS bawaan
-        # (--ssl-verify-server-cert) yang diuji di sini persis sama dengan
-        # yang dipakai di produksi. Klien Oracle menolak opsi tersebut.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mariadb-client
-
-      - name: Siapkan berkas .env
+      - name: Tunggu aplikasi siap
         run: |
-          cp .env.example .env
-          php artisan key:generate
-
-      - name: Siapkan Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Bangun aset frontend
-        # Wajib: view yang dirender saat test memakai @vite, yang gagal bila
-        # manifest hasil build tidak ada. Sekaligus menangkap kerusakan build.
-        run: |
-          npm ci
-          npm run build
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8090/up > /dev/null 2>&1; then
+              echo "Aplikasi siap."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Aplikasi tidak siap dalam batas waktu." >&2
+          docker compose logs --tail 50
+          exit 1
 
       - name: Jalankan test
-        run: php artisan test
+        run: docker compose exec -T app php artisan test
+
+      - name: Tampilkan log bila gagal
+        if: failure()
+        run: docker compose logs --tail 100
 
   lint:
     name: Laravel Pint
