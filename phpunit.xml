@@ -23,9 +23,22 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="DB_URL" value=""/>
+        <!-- Test berjalan di MySQL, mesin yang sama dengan produksi, agar
+             perbedaan perilaku (mode ketat, GROUP BY, tipe kolom) tertangkap
+             di test dan bukan di server. Database TERPISAH dari pengembangan
+             karena RefreshDatabase menghapus seluruh tabel.
+             Jalankan dari dalam container: docker compose exec app php artisan test -->
+        <!-- Test memakai MySQL, mesin yang sama dengan produksi, agar perbedaan
+             perilaku (mode ketat, GROUP BY, tipe kolom) tertangkap di test dan
+             bukan di server.
+
+             Yang dialihkan hanya DB_CONNECTION, menunjuk ke koneksi
+             `mysql_testing` di config/database.php yang nama databasenya dikunci.
+             Menimpa DB_DATABASE dari sini TIDAK BISA DIANDALKAN: docker-compose
+             menaruhnya di $_SERVER, yang dibaca Laravel lebih dulu daripada $_ENV.
+
+             Jalankan dari dalam container: docker compose exec app php artisan test -->
+        <env name="DB_CONNECTION" value="mysql_testing" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

@@ -70,6 +70,9 @@ services:
       - "3306"
     volumes:
       - dbdata:/var/lib/mysql
+      # Dijalankan sekali saat volume database pertama kali dibuat —
+      # menyiapkan database terpisah untuk test.
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/01-test-db.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 5s

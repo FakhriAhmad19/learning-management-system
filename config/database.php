@@ -44,6 +44,33 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
+        /*
+         * Koneksi khusus test.
+         *
+         * Nama databasenya sengaja DITULIS TETAP, tidak lewat env(). Alasannya:
+         * docker-compose menaruh DB_DATABASE di $_SERVER, dan Laravel membaca
+         * $_SERVER lebih dulu daripada $_ENV — sehingga override dari phpunit.xml
+         * (yang hanya menyentuh $_ENV/putenv) akan selalu kalah dan test justru
+         * menghapus isi database pengembangan. Dengan dikunci di sini, tidak ada
+         * variabel lingkungan yang bisa mengarahkan test ke database yang salah.
+         */
+        'mysql_testing' => [
+            'driver' => 'mysql',
+            'url' => null,
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => 'learning_system_test',
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
