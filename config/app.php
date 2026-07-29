@@ -65,7 +65,17 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    /*
+     * Aplikasi ini melayani satu wilayah waktu (Indonesia), jadi bawaannya
+     * Asia/Jakarta — bukan UTC.
+     *
+     * Dengan UTC, tenggat tugas yang diketik pengajar "23:59" dibandingkan
+     * terhadap now() dalam UTC, sehingga baru benar-benar habis pukul 06:59
+     * WIB keesokan harinya: siswa mendapat 7 jam ekstra tanpa disengaja.
+     * Timer kuis tidak terpengaruh karena start dan deadline-nya berada di
+     * kerangka waktu yang sama.
+     */
+    'timezone' => env('APP_TIMEZONE', 'Asia/Jakarta'),
 
     /*
     |--------------------------------------------------------------------------
