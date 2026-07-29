@@ -1,0 +1,102 @@
+services:
+  # Aplikasi Laravel + Filament (PHP 8.4)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lms_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      # Pertahankan aset hasil build Vite dari image agar tidak tertimpa bind mount
+      - /var/www/html/public/build
+    ports:
+      # Host 8090 -> container 8000 (8000 sedang terpakai di host)
+      - "8090:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: learning_system
+      DB_USERNAME: lms_user
+      DB_PASSWORD: secret
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  # Queue worker: mengirim notifikasi email di latar belakang.
+  # QUEUE_CONNECTION=database, jadi tanpa worker ini notifikasi akan
+  # menumpuk di tabel `jobs` dan email tidak pernah terkirim.
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lms_queue
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - /var/www/html/public/build
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: learning_system
+      DB_USERNAME: lms_user
+      DB_PASSWORD: secret
+    # Lewati entrypoint (migrate & serve sudah ditangani service `app`)
+    entrypoint: ["php", "artisan", "queue:work", "--tries=3", "--timeout=60", "--sleep=3"]
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+
+  # Database MySQL 8
+  db:
+    image: mysql:8.0
+    container_name: lms_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: learning_system
+      MYSQL_USER: lms_user
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    # Catatan: MySQL TIDAK dipublish ke host untuk menghindari bentrok port
+    # (3306 dipakai MySQL lokal, 3307 dipakai proyek Docker lain).
+    # Kelola database lewat Adminer (http://localhost:8081) via jaringan internal Docker.
+    expose:
+      - "3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Mailpit: server SMTP lokal untuk menangkap email (verifikasi, reset password, dll)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: lms_mailpit
+    restart: unless-stopped
+    ports:
+      # Web UI untuk melihat email yang masuk (SMTP 1025 cukup diakses internal)
+      - "8025:8025"
+    expose:
+      - "1025"
+
+  # Adminer: antarmuka web untuk mengelola database (opsional)
+  adminer:
+    image: adminer:latest
+    container_name: lms_adminer
+    restart: unless-stopped
+    ports:
+      # Host 8081 -> container 8080 (8080 dipakai proyek Docker lain)
+      - "8081:8080"
+    depends_on:
+      - db
+
+volumes:
+  dbdata:
