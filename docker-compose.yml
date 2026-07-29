@@ -1,3 +1,7 @@
+# Nama proyek ditulis eksplisit agar tidak pernah tertukar dengan stack
+# produksi (docker-compose.prod.yml memakai nama "learning-system-prod").
+name: learning-system
+
 services:
   # Aplikasi Laravel + Filament (PHP 8.4)
   app:

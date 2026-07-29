@@ -1,0 +1,93 @@
+# =========================================================================
+# Image PRODUKSI — terpisah dari Dockerfile pengembangan.
+#
+# Perbedaan pokok dari versi dev:
+#   - Kode & dependensi DIBANGUN KE DALAM image (bukan bind mount)
+#   - nginx + php-fpm, bukan `php artisan serve` (server dev satu proses)
+#   - composer install --no-dev, OPcache aktif, cache Laravel dibangun
+#   - TIDAK menjalankan seeder (lihat docker/prod/entrypoint.sh)
+# =========================================================================
+
+# -------------------------------------------------------------------------
+# Stage 1: Aset frontend (Tailwind + Vite)
+# -------------------------------------------------------------------------
+FROM node:22-alpine AS assets
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY vite.config.js ./
+COPY resources ./resources
+RUN npm run build
+
+# -------------------------------------------------------------------------
+# Stage 2: Runtime
+#
+# Dependensi Composer sengaja dipasang DI SINI, bukan di stage terpisah,
+# agar syarat platform (ext-intl dan kawan-kawan yang dibutuhkan Filament)
+# diverifikasi terhadap PHP dan ekstensi yang benar-benar dipakai produksi.
+# -------------------------------------------------------------------------
+FROM php:8.4-fpm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        nginx \
+        supervisor \
+        curl \
+        libpng-dev \
+        libjpeg-dev \
+        libfreetype6-dev \
+        libzip-dev \
+        libonig-dev \
+        libicu-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" \
+        pdo_mysql \
+        mbstring \
+        bcmath \
+        gd \
+        zip \
+        intl \
+        exif \
+        pcntl \
+        opcache
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+COPY docker/prod/php.ini /usr/local/etc/php/conf.d/zz-production.ini
+COPY docker/prod/nginx.conf /etc/nginx/sites-available/default
+COPY docker/prod/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+WORKDIR /var/www/html
+
+# Dependensi lebih dulu, terpisah dari kode aplikasi, agar lapisan ini
+# tetap ter-cache selama composer.lock tidak berubah.
+COPY composer.json composer.lock ./
+RUN composer install \
+        --no-dev \
+        --no-interaction \
+        --prefer-dist \
+        --no-scripts \
+        --no-autoloader
+
+# Kode aplikasi + aset hasil build, dibekukan ke dalam image
+COPY --chown=www-data:www-data . .
+COPY --from=assets --chown=www-data:www-data /app/public/build ./public/build
+
+# Berkas khusus pengembangan tidak perlu ikut ke image produksi
+RUN rm -rf tests phpunit.xml .env.example docker-compose.yml docker-compose.prod.yml Dockerfile \
+    && composer dump-autoload --no-dev --optimize --classmap-authoritative \
+    && composer run-script post-autoload-dump \
+    && rm -f /usr/bin/composer \
+    && chown -R www-data:www-data storage bootstrap/cache
+
+COPY docker/prod/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/up || exit 1
+
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

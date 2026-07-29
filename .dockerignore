@@ -8,3 +8,7 @@ storage/framework/sessions/*
 storage/framework/views/*
 database/database.sqlite
 .env
+.env.production
+learning_system
+*.sqlite
+*.sqlite3

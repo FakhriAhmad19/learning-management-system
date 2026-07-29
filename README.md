@@ -56,6 +56,82 @@ MAIL_SCHEME=tls
 MAIL_FROM_ADDRESS="no-reply@domainkamu.com"
 ```
 
+### Menjalankan test
+
+Test berjalan di **MySQL** (mesin yang sama dengan produksi), pada database
+terpisah `learning_system_test` yang dibuat otomatis. Jalankan dari dalam
+container, karena MySQL tidak dipublikasikan ke host:
+
+```bash
+docker compose exec app php artisan test
+```
+
+---
+
+## Menjalankan di Produksi
+
+Susunan produksi terpisah penuh dari pengembangan: `Dockerfile.prod` +
+`docker-compose.prod.yml` (nama proyek `learning-system-prod`, sehingga
+perintah di satu stack tidak pernah menyentuh stack lainnya).
+
+Perbedaan pokok dari setup pengembangan:
+
+| Aspek | Pengembangan | Produksi |
+| :--- | :--- | :--- |
+| Web server | `php artisan serve` (satu proses) | nginx + php-fpm |
+| Kode | bind mount dari host | dibekukan ke dalam image |
+| Dependensi | lengkap | `--no-dev`, autoloader authoritative |
+| Seeder | dijalankan tiap start | **tidak pernah dijalankan** |
+| OPcache | mati | aktif, tanpa cek timestamp |
+| Cache Laravel | mati | config, route, view, event |
+| Berkas unggahan | ikut direktori proyek | volume `storage` |
+| Log | berkas di dalam container | stderr (`docker logs`) |
+
+### Langkah
+
+```bash
+cp .env.production.example .env.production
+```
+
+Isi setiap nilai bertanda `GANTI`. Untuk `APP_KEY`, buat **sekali saja** lalu
+simpan permanen — membuatnya ulang tiap deploy akan membatalkan semua sesi dan
+merusak data terenkripsi termasuk secret 2FA:
+
+```bash
+docker compose exec app php artisan key:generate --show
+```
+
+Lalu jalankan:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+> `--env-file` **wajib**. `env_file:` di compose hanya mengisi variabel di dalam
+> container, sedangkan interpolasi `${...}` pada berkas compose dibaca dari
+> `--env-file`. Tanpa itu password database akan kosong.
+
+Aplikasi mendengarkan di `127.0.0.1:8091` saja — **letakkan reverse proxy
+(Caddy/Traefik/nginx) di depannya untuk menangani HTTPS**. Jangan buka port itu
+langsung ke internet.
+
+### Membuat akun admin pertama
+
+Seeder tidak dijalankan di produksi, jadi database mulai kosong. Daftarkan diri
+lewat halaman registrasi, lalu berikan peran Admin:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app \
+  php artisan tinker --execute="\App\Models\User::where('email','emailkamu@contoh.com')->first()->assignRole('Admin');"
+```
+
+### Yang masih perlu disiapkan sendiri
+
+Paket ini menutup pemblokir teknis, tetapi hal berikut bergantung pada
+lingkunganmu: **HTTPS/reverse proxy**, **backup database berkala**, dan
+**timezone** (`config/app.php` masih `UTC`, sehingga tenggat tugas dan timer
+kuis akan tampil selisih 7 jam dari WIB).
+
 ---
 
 ## About Laravel

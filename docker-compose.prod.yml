@@ -1,0 +1,89 @@
+# =========================================================================
+# Susunan PRODUKSI, terpisah penuh dari docker-compose.yml.
+#
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# --env-file WAJIB: `env_file:` di bawah hanya mengisi variabel DI DALAM
+# container, sedangkan interpolasi ${...} pada berkas compose ini dibaca
+# dari --env-file / shell. Tanpa itu password database jadi kosong.
+#
+# Seluruh nilai rahasia dibaca dari .env.production (lihat
+# .env.production.example). Berkas itu TIDAK boleh masuk git.
+# =========================================================================
+
+# Nama proyek dibedakan dari stack pengembangan. WAJIB — tanpa ini keduanya
+# berbagi proyek yang sama, sehingga `down -v` di sini ikut menghapus
+# container dan volume database PENGEMBANGAN.
+name: learning-system-prod
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: learning-system:prod
+    container_name: lms_prod_app
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+    ports:
+      # Diarahkan ke 127.0.0.1 saja: HTTPS ditangani reverse proxy di depan
+      # (Caddy/Traefik/nginx host). Jangan buka port ini langsung ke internet.
+      # Host 8091 dipilih agar tidak bentrok dengan stack dev (8090) maupun
+      # proyek lain yang memakai 8080.
+      - "127.0.0.1:8091:8080"
+    volumes:
+      # Berkas unggahan & log harus bertahan saat image dibangun ulang
+      - storage:/var/www/html/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Pekerja antrean: mengirim email notifikasi di latar belakang.
+  # Wajib hidup — tanpa ini email menumpuk di tabel `jobs`.
+  queue:
+    image: learning-system:prod
+    container_name: lms_prod_queue
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      # Migrasi cukup dijalankan container app, jangan dua-duanya
+      RUN_MIGRATIONS: "false"
+    volumes:
+      - storage:/var/www/html/storage
+    # --max-time membuat worker berhenti berkala lalu di-restart Docker,
+    # sehingga memori tidak menumpuk pada proses yang hidup selamanya.
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=60", "--sleep=3", "--max-time=3600"]
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    container_name: lms_prod_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    # Tidak dipublikasikan ke host — hanya dapat diakses lewat jaringan Docker
+    expose:
+      - "3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dbdata:
+  storage:
