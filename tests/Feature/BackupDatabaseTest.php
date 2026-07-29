@@ -119,8 +119,18 @@ class BackupDatabaseTest extends TestCase
 
     public function test_rejects_non_mysql_connections(): void
     {
-        config()->set('database.default', 'sqlite');
+        $original = config('database.default');
 
-        $this->artisan('backup:database')->assertFailed();
+        // Koneksi default WAJIB dikembalikan sebelum test selesai: RefreshDatabase
+        // membatalkan transaksinya pada koneksi default saat teardown, sehingga
+        // meninggalkannya sebagai sqlite membuat teardown gagal mencari berkas
+        // SQLite yang tidak ada.
+        try {
+            config()->set('database.default', 'sqlite');
+
+            $this->artisan('backup:database')->assertFailed();
+        } finally {
+            config()->set('database.default', $original);
+        }
     }
 }
