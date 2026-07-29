@@ -1,10 +1,11 @@
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+<a href="https://github.com/FakhriAhmad19/learning-management-system/actions/workflows/tests.yml"><img src="https://github.com/FakhriAhmad19/learning-management-system/actions/workflows/tests.yml/badge.svg" alt="Status Test"></a>
+</p>
+
+<p align="center">
+Learning Management System berbasis <strong>Laravel 13</strong> + <strong>Filament 3</strong>.
 </p>
 
 ## Menjalankan dengan Docker (MySQL)
@@ -65,6 +66,12 @@ container, karena MySQL tidak dipublikasikan ke host:
 ```bash
 docker compose exec app php artisan test
 ```
+
+Test dan pemeriksaan gaya kode juga berjalan otomatis di GitHub Actions pada
+setiap push dan pull request ke `main` — lihat
+[.github/workflows/tests.yml](.github/workflows/tests.yml). Nama database pada
+service MySQL di CI harus sama dengan yang dikunci pada koneksi
+`mysql_testing` di `config/database.php`.
 
 ---
 
