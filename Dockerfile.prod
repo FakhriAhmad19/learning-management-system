@@ -32,6 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         supervisor \
         curl \
+        # Dibutuhkan perintah backup:database
+        default-mysql-client \
+        gzip \
         libpng-dev \
         libjpeg-dev \
         libfreetype6-dev \

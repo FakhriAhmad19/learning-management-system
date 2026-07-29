@@ -57,6 +57,31 @@ services:
       app:
         condition: service_started
 
+  # Penjadwal Laravel (cadangan database harian). Ada juga di pengembangan
+  # supaya perilakunya sama dengan produksi dan bisa diuji lebih awal.
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lms_scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - /var/www/html/public/build
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: learning_system
+      DB_USERNAME: lms_user
+      DB_PASSWORD: secret
+    entrypoint: ["php", "artisan", "schedule:work"]
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+
   # Database MySQL 8
   db:
     image: mysql:8.0

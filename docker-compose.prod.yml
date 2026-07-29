@@ -64,6 +64,26 @@ services:
       db:
         condition: service_healthy
 
+  # Penjadwal Laravel: menjalankan cadangan database harian.
+  # Wajib hidup — tanpa ini tidak ada cadangan yang pernah dibuat.
+  scheduler:
+    image: learning-system:prod
+    container_name: lms_prod_scheduler
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      RUN_MIGRATIONS: "false"
+    volumes:
+      - storage:/var/www/html/storage
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+
   db:
     image: mysql:8.0
     container_name: lms_prod_db

@@ -39,6 +39,11 @@ jobs:
       DB_PORT: 3306
       DB_USERNAME: root
       DB_PASSWORD: root
+      # Runner memakai klien mysqldump resmi Oracle, yang TIDAK mengenal
+      # --ssl-verify-server-cert (opsi klien MariaDB pada image Docker
+      # proyek ini). Klien Oracle tidak memverifikasi CA secara bawaan,
+      # jadi tidak perlu opsi TLS tambahan di sini.
+      BACKUP_MYSQLDUMP_OPTIONS: '--single-transaction --no-tablespaces'
 
     steps:
       - uses: actions/checkout@v4

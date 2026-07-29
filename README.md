@@ -132,12 +132,41 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app \
   php artisan tinker --execute="\App\Models\User::where('email','emailkamu@contoh.com')->first()->assignRole('Admin');"
 ```
 
+### Cadangan database
+
+Container `scheduler` menjalankan cadangan setiap hari pukul `BACKUP_DAILY_AT`
+(bawaan 02:00 WIB). Hasilnya berupa `.sql.gz` di dalam volume `storage`
+(`storage/app/backups`), dan cadangan yang lebih tua dari `BACKUP_KEEP_DAYS`
+dihapus otomatis.
+
+Menjalankan manual, misalnya sebelum migrasi berisiko:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app \
+  php artisan backup:database
+```
+
+Memulihkan:
+
+```bash
+gunzip -c learning_system-2026-07-29-020000.sql.gz | \
+  docker compose --env-file .env.production -f docker-compose.prod.yml exec -T db \
+  mysql -u root -p"$DB_ROOT_PASSWORD" learning_system
+```
+
+> **Mengubah jadwal perlu restart.** Container `scheduler` membaca jadwalnya
+> saat start, sehingga mengganti `BACKUP_DAILY_AT` tidak berlaku sampai
+> `docker compose restart scheduler` dijalankan.
+
+> **Cadangan ini ada di host yang sama dengan databasenya.** Bila host hilang,
+> cadangannya ikut hilang. Salin berkasnya keluar secara berkala, misalnya
+> dengan `rsync`/`rclone` dari volume `storage` ke penyimpanan lain.
+
 ### Yang masih perlu disiapkan sendiri
 
-Paket ini menutup pemblokir teknis, tetapi hal berikut bergantung pada
-lingkunganmu: **HTTPS/reverse proxy**, **backup database berkala**, dan
-**timezone** (`config/app.php` masih `UTC`, sehingga tenggat tugas dan timer
-kuis akan tampil selisih 7 jam dari WIB).
+Paket ini menutup pemblokir teknis, tetapi satu hal masih bergantung pada
+lingkunganmu: **HTTPS / reverse proxy** di depan aplikasi, dan menyalin
+cadangan database ke luar host.
 
 ---
 
