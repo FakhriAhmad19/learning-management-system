@@ -28,12 +28,11 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 3306
-    ports:
-      # Diarahkan ke 127.0.0.1 saja: HTTPS ditangani reverse proxy di depan
-      # (Caddy/Traefik/nginx host). Jangan buka port ini langsung ke internet.
-      # Host 8091 dipilih agar tidak bentrok dengan stack dev (8090) maupun
-      # proyek lain yang memakai 8080.
-      - "127.0.0.1:8091:8080"
+    # Sengaja TIDAK dipublikasikan ke host. Satu-satunya jalan masuk adalah
+    # Caddy lewat jaringan Docker, sehingga header X-Forwarded-* yang dipercaya
+    # aplikasi tidak mungkin dipalsukan dari luar.
+    expose:
+      - "8080"
     volumes:
       # Berkas unggahan & log harus bertahan saat image dibangun ulang
       - storage:/var/www/html/storage
@@ -62,6 +61,28 @@ services:
       app:
         condition: service_started
       db:
+        condition: service_healthy
+
+  # Reverse proxy: menangani HTTPS dan meneruskan ke container app.
+  # Sertifikat Let's Encrypt diurus otomatis oleh Caddy.
+  caddy:
+    image: caddy:2-alpine
+    container_name: lms_prod_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Domain yang dilayani; dibaca Caddyfile lewat {$APP_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./docker/prod/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Sertifikat WAJIB persisten. Tanpa ini setiap restart meminta
+      # sertifikat baru dan akan menabrak batas laju Let's Encrypt.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
         condition: service_healthy
 
   # Penjadwal Laravel: menjalankan cadangan database harian.
@@ -107,3 +128,5 @@ services:
 volumes:
   dbdata:
   storage:
+  caddy_data:
+  caddy_config:

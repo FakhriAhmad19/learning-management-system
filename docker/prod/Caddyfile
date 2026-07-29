@@ -1,0 +1,36 @@
+# Reverse proxy produksi.
+#
+# Caddy mengurus sertifikat Let's Encrypt secara otomatis, termasuk
+# perpanjangannya — tidak ada yang perlu dijadwalkan sendiri.
+#
+# Syaratnya: APP_DOMAIN sudah diarahkan ke IP server ini, serta port 80 dan
+# 443 terbuka. Port 80 dibutuhkan untuk verifikasi ACME dan pengalihan ke
+# HTTPS, jadi jangan ditutup.
+#
+# Untuk domain berakhiran .localhost (dipakai saat pengujian), Caddy memakai
+# CA internalnya sendiri dan tidak menghubungi Let's Encrypt sama sekali.
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# `app` adalah nama service di docker-compose.prod.yml. Caddy otomatis
+	# menambahkan X-Forwarded-For dan X-Forwarded-Proto, yang dibaca Laravel
+	# lewat trustProxies() di bootstrap/app.php.
+	reverse_proxy app:8080
+
+	# Unggahan tugas dibatasi 10 MB di aplikasi; beri sedikit kelonggaran.
+	request_body {
+		max_size 12MB
+	}
+
+	header {
+		# Paksa browser memakai HTTPS pada kunjungan berikutnya
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	log {
+		output stderr
+		format console
+	}
+}

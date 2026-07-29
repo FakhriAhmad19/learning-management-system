@@ -12,7 +12,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        /*
+         * Aplikasi berjalan di belakang reverse proxy (Caddy) yang menangani
+         * HTTPS. Tanpa ini Laravel melihat permintaan sebagai HTTP biasa dan
+         * menghasilkan tautan `http://` — termasuk tautan verifikasi email dan
+         * reset password, yang bisa gagal atau ditolak browser.
+         *
+         * Mempercayai seluruh proxy ('*') aman di sini karena container app
+         * TIDAK dipublikasikan ke host: satu-satunya jalan masuk adalah Caddy,
+         * sehingga header X-Forwarded-* mustahil dipalsukan dari luar.
+         */
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -118,9 +118,33 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 > container, sedangkan interpolasi `${...}` pada berkas compose dibaca dari
 > `--env-file`. Tanpa itu password database akan kosong.
 
-Aplikasi mendengarkan di `127.0.0.1:8091` saja — **letakkan reverse proxy
-(Caddy/Traefik/nginx) di depannya untuk menangani HTTPS**. Jangan buka port itu
-langsung ke internet.
+### HTTPS
+
+Stack sudah menyertakan **Caddy** sebagai reverse proxy. Caddy menerbitkan dan
+memperpanjang sertifikat Let's Encrypt secara otomatis — tidak ada yang perlu
+dijadwalkan sendiri.
+
+```
+Internet ──→ Caddy (80/443) ──→ app (8080, jaringan Docker)
+```
+
+Yang perlu disiapkan:
+
+1. `APP_DOMAIN` di `.env.production` diarahkan ke domain sungguhan, sama dengan
+   `APP_URL` tetapi tanpa skema
+2. Domain tersebut sudah menunjuk ke IP server (A/AAAA record)
+3. Port **80 dan 443 terbuka** — port 80 dipakai verifikasi ACME dan pengalihan
+   ke HTTPS, jadi jangan ditutup
+
+Container `app` **tidak dipublikasikan ke host** sama sekali; satu-satunya jalan
+masuk adalah Caddy. Karena itu aplikasi mempercayai header `X-Forwarded-*`
+(`trustProxies` di `bootstrap/app.php`), yang membuat Laravel menghasilkan
+tautan `https://` — penting agar tautan verifikasi email dan reset password
+tidak rusak.
+
+> Volume `caddy_data` menyimpan sertifikat dan **wajib persisten**. Menghapusnya
+> membuat Caddy meminta sertifikat baru setiap restart dan akan menabrak batas
+> laju Let's Encrypt.
 
 ### Membuat akun admin pertama
 
@@ -164,9 +188,8 @@ gunzip -c learning_system-2026-07-29-020000.sql.gz | \
 
 ### Yang masih perlu disiapkan sendiri
 
-Paket ini menutup pemblokir teknis, tetapi satu hal masih bergantung pada
-lingkunganmu: **HTTPS / reverse proxy** di depan aplikasi, dan menyalin
-cadangan database ke luar host.
+Yang tersisa dan bergantung pada lingkunganmu: menyalin cadangan database ke
+luar host, agar tidak ikut hilang bila servernya bermasalah.
 
 ---
 
